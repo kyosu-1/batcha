@@ -6,6 +6,12 @@ Inspired by [ecspresso](https://github.com/kayac/ecspresso). Manage your AWS Bat
 
 ## Install
 
+### Homebrew (macOS / Linux)
+
+```
+brew install kyosu-1/tap/batcha
+```
+
 ### Go
 
 ```
