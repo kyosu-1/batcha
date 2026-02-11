@@ -77,7 +77,8 @@ batcha register --config batcha.yml  # Register (skips if no changes)
 | `batcha render --config <file>` | Render and print the job definition template |
 | `batcha diff --config <file>` | Show diff between local template and active AWS definition |
 | `batcha status --config <file>` | Show current status of the job definition on AWS |
-| `batcha run --config <file> --job-queue <queue>` | Submit a job using the latest active job definition |
+| `batcha run --config <file> [--job-queue <queue>]` | Submit a job using the latest active job definition |
+| `batcha logs --config <file> [--job-id <id>]` | Fetch CloudWatch logs for a Batch job |
 | `batcha verify --config <file>` | Validate the job definition template locally (no AWS calls) |
 | `batcha version` | Print version |
 
@@ -92,15 +93,40 @@ batcha run --config batcha.yml --job-queue my-queue
 | Flag | Description | Required |
 |---|---|---|
 | `--config` | Path to config YAML file | Yes |
-| `--job-queue` | AWS Batch job queue name | Yes |
+| `--job-queue` | AWS Batch job queue name (overrides config) | No* |
 | `--job-name` | Job name (defaults to job definition name) | No |
 | `--parameter` | Parameter overrides as `key=value` (repeatable) | No |
 | `--wait` | Wait for the job to complete and report status | No |
+
+*`--job-queue` is required unless `job_queue` is set in config.
 
 With `--wait`, batcha polls the job status every 10 seconds and exits with code 0 on success or 1 on failure.
 
 ```
 batcha run --config batcha.yml --job-queue my-queue --wait --parameter input=s3://bucket/file.csv
+```
+
+### logs
+
+Fetch CloudWatch logs for a Batch job.
+
+```
+batcha logs --config batcha.yml --job-id <job-id>
+```
+
+| Flag | Description | Required |
+|---|---|---|
+| `--config` | Path to config YAML file | Yes |
+| `--job-id` | AWS Batch job ID (if omitted, finds the latest job) | No |
+| `--job-queue` | AWS Batch job queue name (overrides config, used for latest job search) | No |
+| `-f`, `--follow` | Follow logs in real time | No |
+| `--since` | Show logs since duration (e.g. `1h`, `30m`) | No |
+
+Without `--job-id`, batcha searches for the most recent job matching the configured job definition in the specified queue.
+
+```
+batcha logs --config batcha.yml --follow
+batcha logs --config batcha.yml --since 30m
 ```
 
 ### verify
@@ -126,6 +152,7 @@ Checks:
 ```yaml
 region: ap-northeast-1          # AWS region (falls back to AWS_REGION env var)
 job_definition: job-def.json    # Path to job definition template (relative to config file)
+job_queue: my-job-queue         # Default job queue for run/logs commands (optional)
 plugins:
   - name: tfstate
     config:

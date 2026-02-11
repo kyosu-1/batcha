@@ -39,6 +39,25 @@ func TestLoadConfig_RegionFallback(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_JobQueue(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yml")
+	if err := os.WriteFile(cfgPath, []byte("region: us-east-1\njob_definition: job.json\njob_queue: my-queue\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "job.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.JobQueue != "my-queue" {
+		t.Errorf("JobQueue = %q, want %q", cfg.JobQueue, "my-queue")
+	}
+}
+
 func TestLoadConfig_MissingJobDefinition(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")

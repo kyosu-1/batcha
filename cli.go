@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -25,6 +26,7 @@ func CLI() *cobra.Command {
 		diffCmd(),
 		statusCmd(),
 		runCmd(),
+		logsCmd(),
 		verifyCmd(),
 		versionCmd(),
 	)
@@ -169,12 +171,52 @@ func runCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
-	cmd.Flags().StringVar(&jobQueue, "job-queue", "", "AWS Batch job queue name")
+	cmd.Flags().StringVar(&jobQueue, "job-queue", "", "AWS Batch job queue name (overrides config)")
 	cmd.Flags().StringVar(&jobName, "job-name", "", "Job name (defaults to job definition name)")
 	cmd.Flags().StringArrayVar(&params, "parameter", nil, "Parameter overrides (key=value, repeatable)")
 	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for the job to complete")
 	_ = cmd.MarkFlagRequired("config")
-	_ = cmd.MarkFlagRequired("job-queue")
+	return cmd
+}
+
+func logsCmd() *cobra.Command {
+	var (
+		configPath string
+		jobID      string
+		jobQueue   string
+		follow     bool
+		since      string
+	)
+	cmd := &cobra.Command{
+		Use:   "logs",
+		Short: "Fetch CloudWatch logs for a Batch job",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			app, err := New(ctx, configPath)
+			if err != nil {
+				return err
+			}
+			var sinceDur time.Duration
+			if since != "" {
+				sinceDur, err = time.ParseDuration(since)
+				if err != nil {
+					return fmt.Errorf("invalid --since duration: %w", err)
+				}
+			}
+			return app.Logs(ctx, LogsOption{
+				JobID:    jobID,
+				JobQueue: jobQueue,
+				Follow:   follow,
+				Since:    sinceDur,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
+	cmd.Flags().StringVar(&jobID, "job-id", "", "AWS Batch job ID (if omitted, finds the latest job)")
+	cmd.Flags().StringVar(&jobQueue, "job-queue", "", "AWS Batch job queue name (overrides config)")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow logs in real time")
+	cmd.Flags().StringVar(&since, "since", "", "Show logs since duration (e.g. 1h, 30m)")
+	_ = cmd.MarkFlagRequired("config")
 	return cmd
 }
 

@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Region        string   `yaml:"region"`
 	JobDefinition string   `yaml:"job_definition"`
+	JobQueue      string   `yaml:"job_queue"`
 	Plugins       []Plugin `yaml:"plugins"`
 }
 
