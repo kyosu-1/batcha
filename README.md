@@ -120,6 +120,37 @@ This will be sent to the API as `{ "JobDefinitionName": "..." }`.
 
 Keys under `tags`, `parameters`, and `options` are preserved as-is.
 
+## GitHub Actions
+
+```yaml
+- uses: kyosu-1/batcha@v0
+  with:
+    version: v0.1.0
+```
+
+| Input | Description | Default |
+|---|---|---|
+| `version` | Version to install | `latest` |
+| `version-file` | File containing the version (e.g. `.batcha-version`) | |
+| `args` | Arguments to pass to batcha | |
+
+### Examples
+
+Install and run:
+
+```yaml
+- uses: kyosu-1/batcha@v0
+  with:
+    args: "register --config batcha.yml --dry-run"
+```
+
+Install only, then run separately:
+
+```yaml
+- uses: kyosu-1/batcha@v0
+- run: batcha diff --config batcha.yml
+```
+
 ## License
 
 MIT
