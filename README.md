@@ -24,6 +24,16 @@ Download from [Releases](https://github.com/kyosu-1/batcha/releases).
 
 ## Quick Start
 
+### From an existing AWS Batch Job Definition
+
+```
+batcha init --job-definition-name my-job-def
+```
+
+This generates `batcha.yml` and `job-definition.json` from the active definition on AWS.
+
+### From scratch
+
 1. Create a config file (`batcha.yml`):
 
 ```yaml
@@ -50,23 +60,19 @@ job_definition: job-definition.json
 }
 ```
 
-3. Preview the rendered definition:
+### Deploy
 
 ```
-batcha render --config batcha.yml
-```
-
-4. Register the job definition:
-
-```
-batcha register --config batcha.yml
+batcha diff --config batcha.yml      # Preview changes
+batcha register --config batcha.yml  # Register (skips if no changes)
 ```
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `batcha register --config <file>` | Register a Job Definition to AWS Batch |
+| `batcha init --job-definition-name <name>` | Generate config and template from an existing AWS Batch definition |
+| `batcha register --config <file>` | Register a Job Definition to AWS Batch (skips if no changes) |
 | `batcha register --config <file> --dry-run` | Preview the rendered JSON without registering |
 | `batcha render --config <file>` | Render and print the job definition template |
 | `batcha diff --config <file>` | Show diff between local template and active AWS definition |
