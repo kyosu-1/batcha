@@ -21,15 +21,14 @@ builds:
 archives:
   - format_overrides:
       - goos: windows
-        format: zip
-brews:
+        formats: [zip]
+homebrew_casks:
   - repository:
       owner: kyosu-1
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/kyosu-1/batcha
     description: Declarative deployment tool for AWS Batch Job Definitions
-    license: MIT
 checksum:
   name_template: "checksums.txt"
 changelog:
