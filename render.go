@@ -9,7 +9,7 @@ import (
 )
 
 // render loads and renders the job definition template.
-func (app *App) render(ctx context.Context) (map[string]any, error) {
+func (app *App) render(ctx context.Context) (rendered map[string]any, err error) {
 	loader := goconfig.New()
 	if err := setupPlugins(ctx, app.config, loader); err != nil {
 		return nil, err
@@ -20,7 +20,14 @@ func (app *App) render(ctx context.Context) (map[string]any, error) {
 		jobDefPath = filepath.Join(filepath.Dir(app.configPath), jobDefPath)
 	}
 
-	var rendered map[string]any
+	// go-config panics on must_env with undefined variables.
+	defer func() {
+		if r := recover(); r != nil {
+			rendered = nil
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
 	if err := loader.LoadWithEnvJSON(&rendered, jobDefPath); err != nil {
 		return nil, fmt.Errorf("failed to render job definition template: %w", err)
 	}

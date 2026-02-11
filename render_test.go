@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -54,5 +55,29 @@ func TestRender_DefaultEnv(t *testing.T) {
 	name := rendered["jobDefinitionName"].(string)
 	if name != "example-job" {
 		t.Errorf("jobDefinitionName = %q, want %q (default)", name, "example-job")
+	}
+}
+
+func TestRender_MustEnvPanic(t *testing.T) {
+	dir := t.TempDir()
+	jobDef := "{\"jobDefinitionName\": \"{{ must_env `BATCHA_TEST_UNDEFINED_VAR` }}\"}"
+	if err := os.WriteFile(filepath.Join(dir, "job.json"), []byte(jobDef), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "batcha.yml"), []byte("region: us-east-1\njob_definition: job.json\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := New(context.Background(), filepath.Join(dir, "batcha.yml"))
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	_, err = app.render(context.Background())
+	if err == nil {
+		t.Fatal("expected error for undefined must_env variable")
+	}
+	if !strings.Contains(err.Error(), "BATCHA_TEST_UNDEFINED_VAR") {
+		t.Errorf("error should mention the variable name, got: %v", err)
 	}
 }
