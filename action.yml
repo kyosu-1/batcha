@@ -34,7 +34,11 @@ runs:
 
         VERSION="${{ inputs.version }}"
         if [ -n "${{ inputs.version-file }}" ]; then
-          VERSION="v$(cat ${{ inputs.version-file }})"
+          VERSION=$(cat "${{ inputs.version-file }}")
+        fi
+        # Ensure version has v prefix (accept both "0.2.2" and "v0.2.2")
+        if [ "${VERSION}" != "latest" ] && [[ ! "${VERSION}" =~ ^v ]]; then
+          VERSION="v${VERSION}"
         fi
 
         echo "VERSION=${VERSION} GOARCH=${GOARCH}"
@@ -48,6 +52,10 @@ runs:
             | jq --arg matcher "linux.${GOARCH}." -r '[.[]|select(.prerelease==false)][0].assets[].browser_download_url|select(match($matcher))')
         else
           DOWNLOAD_URL=https://github.com/kyosu-1/batcha/releases/download/${VERSION}/batcha_${VERSION#v}_linux_${GOARCH}.tar.gz
+        fi
+        if [ -z "${DOWNLOAD_URL}" ]; then
+          echo "Error: could not determine download URL for VERSION=${VERSION} GOARCH=${GOARCH}"
+          exit 1
         fi
         echo "DOWNLOAD_URL=${DOWNLOAD_URL}"
         mkdir -p ${RUNNER_TOOL_CACHE}/batcha
