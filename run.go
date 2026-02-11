@@ -20,6 +20,14 @@ type RunOption struct {
 
 // Run submits a job using the latest active job definition.
 func (app *App) Run(ctx context.Context, opt RunOption) error {
+	// Resolve job queue: CLI flag > config > error
+	if opt.JobQueue == "" {
+		opt.JobQueue = app.config.JobQueue
+	}
+	if opt.JobQueue == "" {
+		return fmt.Errorf("job queue is required: set job_queue in config or use --job-queue flag")
+	}
+
 	rendered, err := app.render(ctx)
 	if err != nil {
 		return err
