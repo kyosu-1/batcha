@@ -199,7 +199,7 @@ Keys under `tags`, `parameters`, and `options` are preserved as-is.
 ```yaml
 - uses: kyosu-1/batcha@v0
   with:
-    version: v0.1.0
+    version: v0.3.0
 ```
 
 | Input | Description | Default |
