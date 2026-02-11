@@ -148,7 +148,7 @@ Install only, then run separately:
 
 ```yaml
 - uses: kyosu-1/batcha@v0
-- run: batcha diff --config batcha.yml
+- run: batcha register --config batcha.yml
 ```
 
 ## License
