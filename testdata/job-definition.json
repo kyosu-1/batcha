@@ -1,0 +1,31 @@
+{
+  "jobDefinitionName": "{{ env `TEST_JOB_NAME` `example-job` }}",
+  "type": "container",
+  "containerProperties": {
+    "image": "{{ env `TEST_IMAGE` `nginx:latest` }}",
+    "resourceRequirements": [
+      {
+        "type": "VCPU",
+        "value": "1"
+      },
+      {
+        "type": "MEMORY",
+        "value": "2048"
+      }
+    ],
+    "environment": [
+      {
+        "name": "APP_ENV",
+        "value": "{{ env `APP_ENV` `production` }}"
+      }
+    ],
+    "command": ["echo", "hello"]
+  },
+  "tags": {
+    "project": "example",
+    "managedBy": "batcha"
+  },
+  "parameters": {
+    "inputFile": "s3://bucket/input.csv"
+  }
+}
