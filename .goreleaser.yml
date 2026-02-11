@@ -22,7 +22,7 @@ archives:
   - format_overrides:
       - goos: windows
         formats: [zip]
-homebrew_casks:
+brews:
   - repository:
       owner: kyosu-1
       name: homebrew-tap
