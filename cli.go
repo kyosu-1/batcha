@@ -18,12 +18,37 @@ func CLI() *cobra.Command {
 	}
 
 	root.AddCommand(
+		initCmd(),
 		registerCmd(),
 		renderCmd(),
 		diffCmd(),
 		versionCmd(),
 	)
 	return root
+}
+
+func initCmd() *cobra.Command {
+	var (
+		jobDefName string
+		region     string
+		outputDir  string
+	)
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Generate config and job definition from an existing AWS Batch definition",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return Init(cmd.Context(), InitOption{
+				JobDefinitionName: jobDefName,
+				Region:            region,
+				OutputDir:         outputDir,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&jobDefName, "job-definition-name", "", "Name of the AWS Batch job definition to fetch")
+	cmd.Flags().StringVar(&region, "region", "", "AWS region (falls back to AWS_REGION)")
+	cmd.Flags().StringVar(&outputDir, "output", ".", "Output directory for generated files")
+	_ = cmd.MarkFlagRequired("job-definition-name")
+	return cmd
 }
 
 func registerCmd() *cobra.Command {
