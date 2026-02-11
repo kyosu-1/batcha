@@ -1,0 +1,74 @@
+inputs:
+  version:
+    description: "A version to install batcha"
+    default: latest
+    required: false
+  version-file:
+    description: "File containing the batcha version. Example: .batcha-version"
+    required: false
+  github-token:
+    description: "The token used when calling GitHub API"
+    required: false
+    default: ${{ github.token }}
+  args:
+    description: "Arguments to pass to batcha"
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      env:
+        github_token: ${{ inputs.github-token }}
+      run: |
+        set -e
+        ARCH=$(uname -m)
+        if [ "${ARCH}" = "x86_64" ]; then
+          GOARCH="amd64"
+        elif [ "${ARCH}" = "aarch64" ]; then
+          GOARCH="arm64"
+        else
+          echo "Unsupported architecture: ${ARCH}"
+          exit 1
+        fi
+
+        VERSION="${{ inputs.version }}"
+        if [ -n "${{ inputs.version-file }}" ]; then
+          VERSION="v$(cat ${{ inputs.version-file }})"
+        fi
+
+        echo "VERSION=${VERSION} GOARCH=${GOARCH}"
+
+        api_request_args=("-sS")
+        if [[ -n "$github_token" ]]; then
+          api_request_args=("${api_request_args[@]}" -H "authorization: token $github_token")
+        fi
+        if [ "${VERSION}" = "latest" ]; then
+          DOWNLOAD_URL=$(curl "${api_request_args[@]}" https://api.github.com/repos/kyosu-1/batcha/releases \
+            | jq --arg matcher "linux.${GOARCH}." -r '[.[]+|select(.prerelease==false)][0].assets[].browser_download_url|select(match($matcher))')
+        else
+          DOWNLOAD_URL=https://github.com/kyosu-1/batcha/releases/download/${VERSION}/batcha_${VERSION#v}_linux_${GOARCH}.tar.gz
+        fi
+        echo "DOWNLOAD_URL=${DOWNLOAD_URL}"
+        mkdir -p ${RUNNER_TOOL_CACHE}/batcha
+        cd /tmp
+        curl -sfLO --retry 3 ${DOWNLOAD_URL}
+        if [[ "${DOWNLOAD_URL}" =~ \.tar\.gz$ ]]; then
+          FILENAME=$(basename $DOWNLOAD_URL .tar.gz)
+          tar xzvf ${FILENAME}.tar.gz
+          sudo install batcha ${RUNNER_TOOL_CACHE}/batcha/batcha
+        elif [[ "${DOWNLOAD_URL}" =~ \.zip$ ]]; then
+          FILENAME=$(basename $DOWNLOAD_URL .zip)
+          unzip ${FILENAME}.zip
+          sudo install ${FILENAME} ${RUNNER_TOOL_CACHE}/batcha/batcha
+        fi
+
+        echo "Adding ${RUNNER_TOOL_CACHE}/batcha to path..."
+        echo "${RUNNER_TOOL_CACHE}/batcha" >> $GITHUB_PATH
+        "${RUNNER_TOOL_CACHE}/batcha/batcha" version
+    - name: Run batcha with args
+      shell: bash
+      run: |
+        set -e
+        batcha ${{ inputs.args }}
+      if: ${{ inputs.args != '' }}
