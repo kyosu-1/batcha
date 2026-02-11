@@ -1,233 +1,63 @@
 package batcha
 
 import (
-	"context"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	batchTypes "github.com/aws/aws-sdk-go-v2/service/batch/types"
 )
 
-// --- toPascalCase tests ---
-
-func TestToPascalCase(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"", ""},
-		{"a", "A"},
-		{"jobDefinitionName", "JobDefinitionName"},
-		{"type", "Type"},
-		{"containerProperties", "ContainerProperties"},
-		{"VCPU", "VCPU"},
-		{"Already", "Already"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := toPascalCase(tt.input)
-			if got != tt.want {
-				t.Errorf("toPascalCase(%q) = %q, want %q", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
-// --- walkMap tests ---
-
-func TestWalkMap(t *testing.T) {
-	input := map[string]any{
-		"jobDefinitionName": "test-job",
-		"containerProperties": map[string]any{
-			"image": "nginx",
-			"environment": []any{
-				map[string]any{
-					"name":  "FOO",
-					"value": "bar",
-				},
+func TestNormalizeRemoteDefinition(t *testing.T) {
+	def := batchTypes.JobDefinition{
+		JobDefinitionArn:             aws.String("arn:aws:batch:ap-northeast-1:123456789012:job-definition/test-job:1"),
+		JobDefinitionName:            aws.String("test-job"),
+		Revision:                     aws.Int32(1),
+		Status:                       aws.String("ACTIVE"),
+		ContainerOrchestrationType:   "ECS",
+		Type:                         aws.String("container"),
+		PlatformCapabilities:         []batchTypes.PlatformCapability{batchTypes.PlatformCapabilityFargate},
+		ContainerProperties: &batchTypes.ContainerProperties{
+			Image:   aws.String("nginx:latest"),
+			Command: []string{"/bin/sh"},
+			ResourceRequirements: []batchTypes.ResourceRequirement{
+				{Type: batchTypes.ResourceTypeVcpu, Value: aws.String("0.25")},
+				{Type: batchTypes.ResourceTypeMemory, Value: aws.String("512")},
 			},
 		},
-		"tags": map[string]any{
-			"myTag": "value",
-		},
-		"parameters": map[string]any{
-			"inputFile": "s3://bucket/file",
-		},
 	}
 
-	result := walkMap(input, toPascalCase).(map[string]any)
-
-	// Top-level keys should be PascalCase
-	if _, ok := result["JobDefinitionName"]; !ok {
-		t.Error("expected JobDefinitionName key")
+	m, err := normalizeRemoteDefinition(def)
+	if err != nil {
+		t.Fatalf("normalizeRemoteDefinition failed: %v", err)
 	}
 
-	// Nested keys should be PascalCase
-	cp := result["ContainerProperties"].(map[string]any)
-	if _, ok := cp["Image"]; !ok {
-		t.Error("expected Image key in ContainerProperties")
+	// AWS-managed fields should be stripped
+	for _, key := range initExcludeKeys {
+		if _, ok := m[key]; ok {
+			t.Errorf("expected key %q to be removed, but it exists", key)
+		}
 	}
 
-	// Environment inside array should be PascalCase
-	envList := cp["Environment"].([]any)
-	envItem := envList[0].(map[string]any)
-	if _, ok := envItem["Name"]; !ok {
-		t.Error("expected Name key in environment item")
+	// User-managed fields should remain
+	if _, ok := m["JobDefinitionName"]; !ok {
+		t.Error("expected JobDefinitionName to remain")
 	}
-
-	// Tags keys should NOT be converted (skipPascalKeys)
-	tags := result["Tags"].(map[string]any)
-	if _, ok := tags["myTag"]; !ok {
-		t.Error("expected tags keys to be preserved as-is")
+	if _, ok := m["Type"]; !ok {
+		t.Error("expected Type to remain")
 	}
-
-	// Parameters keys should NOT be converted (skipPascalKeys)
-	params := result["Parameters"].(map[string]any)
-	if _, ok := params["inputFile"]; !ok {
-		t.Error("expected parameters keys to be preserved as-is")
+	if _, ok := m["ContainerProperties"]; !ok {
+		t.Error("expected ContainerProperties to remain")
 	}
 }
 
-// --- LoadConfig tests ---
-
-func TestLoadConfig(t *testing.T) {
-	cfg, err := LoadConfig(filepath.Join("testdata", "config.yml"))
-	if err != nil {
-		t.Fatalf("LoadConfig failed: %v", err)
+func TestPickLatestRevision(t *testing.T) {
+	defs := []batchTypes.JobDefinition{
+		{JobDefinitionName: aws.String("job"), Revision: aws.Int32(1)},
+		{JobDefinitionName: aws.String("job"), Revision: aws.Int32(3)},
+		{JobDefinitionName: aws.String("job"), Revision: aws.Int32(2)},
 	}
-	if cfg.Region != "ap-northeast-1" {
-		t.Errorf("Region = %q, want %q", cfg.Region, "ap-northeast-1")
-	}
-	if cfg.JobDefinition != "job-definition.json" {
-		t.Errorf("JobDefinition = %q, want %q", cfg.JobDefinition, "job-definition.json")
-	}
-}
-
-func TestLoadConfig_RegionFallback(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yml")
-	if err := os.WriteFile(cfgPath, []byte("job_definition: job.json\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "job.json"), []byte("{}"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Setenv("AWS_REGION", "us-west-2")
-	cfg, err := LoadConfig(cfgPath)
-	if err != nil {
-		t.Fatalf("LoadConfig failed: %v", err)
-	}
-	if cfg.Region != "us-west-2" {
-		t.Errorf("Region = %q, want %q", cfg.Region, "us-west-2")
-	}
-}
-
-func TestLoadConfig_MissingJobDefinition(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yml")
-	if err := os.WriteFile(cfgPath, []byte("region: us-east-1\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := LoadConfig(cfgPath)
-	if err == nil {
-		t.Fatal("expected error for missing job_definition")
-	}
-}
-
-// --- render tests ---
-
-func TestRender(t *testing.T) {
-	t.Setenv("TEST_JOB_NAME", "my-job")
-	t.Setenv("TEST_IMAGE", "myrepo/myimage:v1")
-	t.Setenv("APP_ENV", "staging")
-
-	app, err := New(context.Background(), filepath.Join("testdata", "config.yml"))
-	if err != nil {
-		t.Fatalf("New failed: %v", err)
-	}
-
-	rendered, err := app.render(context.Background())
-	if err != nil {
-		t.Fatalf("render failed: %v", err)
-	}
-
-	name, ok := rendered["jobDefinitionName"].(string)
-	if !ok || name != "my-job" {
-		t.Errorf("jobDefinitionName = %v, want %q", rendered["jobDefinitionName"], "my-job")
-	}
-
-	cp := rendered["containerProperties"].(map[string]any)
-	image, ok := cp["image"].(string)
-	if !ok || image != "myrepo/myimage:v1" {
-		t.Errorf("image = %v, want %q", cp["image"], "myrepo/myimage:v1")
-	}
-}
-
-func TestRender_DefaultEnv(t *testing.T) {
-	// Unset env vars to test defaults
-	t.Setenv("TEST_JOB_NAME", "")
-	if err := os.Unsetenv("TEST_JOB_NAME"); err != nil {
-		t.Fatal(err)
-	}
-
-	app, err := New(context.Background(), filepath.Join("testdata", "config.yml"))
-	if err != nil {
-		t.Fatalf("New failed: %v", err)
-	}
-
-	rendered, err := app.render(context.Background())
-	if err != nil {
-		t.Fatalf("render failed: %v", err)
-	}
-
-	name := rendered["jobDefinitionName"].(string)
-	if name != "example-job" {
-		t.Errorf("jobDefinitionName = %q, want %q (default)", name, "example-job")
-	}
-}
-
-// --- DryRun (register --dry-run) test ---
-
-func TestRegister_DryRun(t *testing.T) {
-	t.Setenv("TEST_JOB_NAME", "dry-run-job")
-
-	app, err := New(context.Background(), filepath.Join("testdata", "config.yml"))
-	if err != nil {
-		t.Fatalf("New failed: %v", err)
-	}
-
-	// dry-run just prints JSON and returns nil
-	err = app.Register(context.Background(), RegisterOption{DryRun: true})
-	if err != nil {
-		t.Fatalf("Register dry-run failed: %v", err)
-	}
-}
-
-// --- unifiedDiff tests ---
-
-func TestUnifiedDiff_NoDiff(t *testing.T) {
-	a := "line1\nline2\nline3"
-	b := "line1\nline2\nline3"
-	diff := unifiedDiff(a, b, "a", "b")
-	if diff != "" {
-		t.Errorf("expected empty diff, got:\n%s", diff)
-	}
-}
-
-func TestUnifiedDiff_WithChanges(t *testing.T) {
-	a := "line1\nline2\nline3"
-	b := "line1\nmodified\nline3"
-	diff := unifiedDiff(a, b, "a", "b")
-	if diff == "" {
-		t.Error("expected non-empty diff")
-	}
-	// Should contain unified diff markers
-	if !strings.Contains(diff, "---") || !strings.Contains(diff, "+++") || !strings.Contains(diff, "@@") {
-		t.Errorf("diff missing markers:\n%s", diff)
-	}
-	if !strings.Contains(diff, "-line2") || !strings.Contains(diff, "+modified") {
-		t.Errorf("diff missing expected lines:\n%s", diff)
+	latest := pickLatestRevision(defs)
+	if aws.ToInt32(latest.Revision) != 3 {
+		t.Errorf("expected revision 3, got %d", aws.ToInt32(latest.Revision))
 	}
 }

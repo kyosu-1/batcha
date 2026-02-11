@@ -24,6 +24,16 @@ Download from [Releases](https://github.com/kyosu-1/batcha/releases).
 
 ## Quick Start
 
+### From an existing AWS Batch Job Definition
+
+```
+batcha init --job-definition-name my-job-def
+```
+
+This generates `batcha.yml` and `job-definition.json` from the active definition on AWS.
+
+### From scratch
+
 1. Create a config file (`batcha.yml`):
 
 ```yaml
@@ -50,27 +60,64 @@ job_definition: job-definition.json
 }
 ```
 
-3. Preview the rendered definition:
+### Deploy
 
 ```
-batcha render --config batcha.yml
-```
-
-4. Register the job definition:
-
-```
-batcha register --config batcha.yml
+batcha diff --config batcha.yml      # Preview changes
+batcha register --config batcha.yml  # Register (skips if no changes)
 ```
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `batcha register --config <file>` | Register a Job Definition to AWS Batch |
+| `batcha init --job-definition-name <name>` | Generate config and template from an existing AWS Batch definition |
+| `batcha register --config <file>` | Register a Job Definition to AWS Batch (skips if no changes) |
 | `batcha register --config <file> --dry-run` | Preview the rendered JSON without registering |
 | `batcha render --config <file>` | Render and print the job definition template |
 | `batcha diff --config <file>` | Show diff between local template and active AWS definition |
+| `batcha status --config <file>` | Show current status of the job definition on AWS |
+| `batcha run --config <file> --job-queue <queue>` | Submit a job using the latest active job definition |
+| `batcha verify --config <file>` | Validate the job definition template locally (no AWS calls) |
 | `batcha version` | Print version |
+
+### run
+
+Submit a job to AWS Batch using the latest active revision of the job definition.
+
+```
+batcha run --config batcha.yml --job-queue my-queue
+```
+
+| Flag | Description | Required |
+|---|---|---|
+| `--config` | Path to config YAML file | Yes |
+| `--job-queue` | AWS Batch job queue name | Yes |
+| `--job-name` | Job name (defaults to job definition name) | No |
+| `--parameter` | Parameter overrides as `key=value` (repeatable) | No |
+| `--wait` | Wait for the job to complete and report status | No |
+
+With `--wait`, batcha polls the job status every 10 seconds and exits with code 0 on success or 1 on failure.
+
+```
+batcha run --config batcha.yml --job-queue my-queue --wait --parameter input=s3://bucket/file.csv
+```
+
+### verify
+
+Validate the job definition template locally without calling AWS. Useful in CI pipelines.
+
+```
+batcha verify --config batcha.yml
+```
+
+Checks:
+
+- Template rendering (syntax errors, missing `must_env` variables)
+- Valid `RegisterJobDefinitionInput` structure
+- Required fields (`jobDefinitionName`, `type`, `containerProperties.image`, etc.)
+- Resource requirements (`VCPU` and `MEMORY` present and valid)
+- Fargate constraints (valid vCPU/memory combinations, `executionRoleArn` required)
 
 ## Configuration
 

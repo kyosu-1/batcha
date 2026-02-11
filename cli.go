@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -18,12 +19,40 @@ func CLI() *cobra.Command {
 	}
 
 	root.AddCommand(
+		initCmd(),
 		registerCmd(),
 		renderCmd(),
 		diffCmd(),
+		statusCmd(),
+		runCmd(),
+		verifyCmd(),
 		versionCmd(),
 	)
 	return root
+}
+
+func initCmd() *cobra.Command {
+	var (
+		jobDefName string
+		region     string
+		outputDir  string
+	)
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Generate config and job definition from an existing AWS Batch definition",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return Init(cmd.Context(), InitOption{
+				JobDefinitionName: jobDefName,
+				Region:            region,
+				OutputDir:         outputDir,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&jobDefName, "job-definition-name", "", "Name of the AWS Batch job definition to fetch")
+	cmd.Flags().StringVar(&region, "region", "", "AWS region (falls back to AWS_REGION)")
+	cmd.Flags().StringVar(&outputDir, "output", ".", "Output directory for generated files")
+	_ = cmd.MarkFlagRequired("job-definition-name")
+	return cmd
 }
 
 func registerCmd() *cobra.Command {
@@ -80,6 +109,87 @@ func diffCmd() *cobra.Command {
 				return err
 			}
 			return app.Diff(ctx)
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
+	_ = cmd.MarkFlagRequired("config")
+	return cmd
+}
+
+func statusCmd() *cobra.Command {
+	var configPath string
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show the current status of the job definition on AWS",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			app, err := New(ctx, configPath)
+			if err != nil {
+				return err
+			}
+			return app.Status(ctx)
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
+	_ = cmd.MarkFlagRequired("config")
+	return cmd
+}
+
+func runCmd() *cobra.Command {
+	var (
+		configPath string
+		jobQueue   string
+		jobName    string
+		params     []string
+		wait       bool
+	)
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Submit a job using the latest active job definition",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			app, err := New(ctx, configPath)
+			if err != nil {
+				return err
+			}
+			paramMap := make(map[string]string)
+			for _, p := range params {
+				k, v, ok := strings.Cut(p, "=")
+				if !ok {
+					return fmt.Errorf("invalid parameter format %q, expected key=value", p)
+				}
+				paramMap[k] = v
+			}
+			return app.Run(ctx, RunOption{
+				JobQueue:   jobQueue,
+				JobName:    jobName,
+				Parameters: paramMap,
+				Wait:       wait,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
+	cmd.Flags().StringVar(&jobQueue, "job-queue", "", "AWS Batch job queue name")
+	cmd.Flags().StringVar(&jobName, "job-name", "", "Job name (defaults to job definition name)")
+	cmd.Flags().StringArrayVar(&params, "parameter", nil, "Parameter overrides (key=value, repeatable)")
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for the job to complete")
+	_ = cmd.MarkFlagRequired("config")
+	_ = cmd.MarkFlagRequired("job-queue")
+	return cmd
+}
+
+func verifyCmd() *cobra.Command {
+	var configPath string
+	cmd := &cobra.Command{
+		Use:   "verify",
+		Short: "Validate the job definition template locally",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			app, err := New(ctx, configPath)
+			if err != nil {
+				return err
+			}
+			return app.Verify(ctx)
 		},
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
