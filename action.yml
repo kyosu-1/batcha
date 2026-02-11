@@ -45,7 +45,7 @@ runs:
         fi
         if [ "${VERSION}" = "latest" ]; then
           DOWNLOAD_URL=$(curl "${api_request_args[@]}" https://api.github.com/repos/kyosu-1/batcha/releases \
-            | jq --arg matcher "linux.${GOARCH}." -r '[.[]+|select(.prerelease==false)][0].assets[].browser_download_url|select(match($matcher))')
+            | jq --arg matcher "linux.${GOARCH}." -r '[.[]|select(.prerelease==false)][0].assets[].browser_download_url|select(match($matcher))')
         else
           DOWNLOAD_URL=https://github.com/kyosu-1/batcha/releases/download/${VERSION}/batcha_${VERSION#v}_linux_${GOARCH}.tar.gz
         fi
