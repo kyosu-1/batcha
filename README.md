@@ -78,6 +78,7 @@ batcha register --config batcha.yml  # Register (skips if no changes)
 | `batcha diff --config <file>` | Show diff between local template and active AWS definition |
 | `batcha status --config <file>` | Show current status of the job definition on AWS |
 | `batcha run --config <file> --job-queue <queue>` | Submit a job using the latest active job definition |
+| `batcha verify --config <file>` | Validate the job definition template locally (no AWS calls) |
 | `batcha version` | Print version |
 
 ### run
@@ -101,6 +102,22 @@ With `--wait`, batcha polls the job status every 10 seconds and exits with code 
 ```
 batcha run --config batcha.yml --job-queue my-queue --wait --parameter input=s3://bucket/file.csv
 ```
+
+### verify
+
+Validate the job definition template locally without calling AWS. Useful in CI pipelines.
+
+```
+batcha verify --config batcha.yml
+```
+
+Checks:
+
+- Template rendering (syntax errors, missing `must_env` variables)
+- Valid `RegisterJobDefinitionInput` structure
+- Required fields (`jobDefinitionName`, `type`, `containerProperties.image`, etc.)
+- Resource requirements (`VCPU` and `MEMORY` present and valid)
+- Fargate constraints (valid vCPU/memory combinations, `executionRoleArn` required)
 
 ## Configuration
 

@@ -25,6 +25,7 @@ func CLI() *cobra.Command {
 		diffCmd(),
 		statusCmd(),
 		runCmd(),
+		verifyCmd(),
 		versionCmd(),
 	)
 	return root
@@ -174,6 +175,25 @@ func runCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for the job to complete")
 	_ = cmd.MarkFlagRequired("config")
 	_ = cmd.MarkFlagRequired("job-queue")
+	return cmd
+}
+
+func verifyCmd() *cobra.Command {
+	var configPath string
+	cmd := &cobra.Command{
+		Use:   "verify",
+		Short: "Validate the job definition template locally",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			app, err := New(ctx, configPath)
+			if err != nil {
+				return err
+			}
+			return app.Verify(ctx)
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
+	_ = cmd.MarkFlagRequired("config")
 	return cmd
 }
 
