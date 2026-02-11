@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -22,6 +23,8 @@ func CLI() *cobra.Command {
 		registerCmd(),
 		renderCmd(),
 		diffCmd(),
+		statusCmd(),
+		runCmd(),
 		versionCmd(),
 	)
 	return root
@@ -109,6 +112,68 @@ func diffCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
 	_ = cmd.MarkFlagRequired("config")
+	return cmd
+}
+
+func statusCmd() *cobra.Command {
+	var configPath string
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show the current status of the job definition on AWS",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			app, err := New(ctx, configPath)
+			if err != nil {
+				return err
+			}
+			return app.Status(ctx)
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
+	_ = cmd.MarkFlagRequired("config")
+	return cmd
+}
+
+func runCmd() *cobra.Command {
+	var (
+		configPath string
+		jobQueue   string
+		jobName    string
+		params     []string
+		wait       bool
+	)
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Submit a job using the latest active job definition",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			app, err := New(ctx, configPath)
+			if err != nil {
+				return err
+			}
+			paramMap := make(map[string]string)
+			for _, p := range params {
+				k, v, ok := strings.Cut(p, "=")
+				if !ok {
+					return fmt.Errorf("invalid parameter format %q, expected key=value", p)
+				}
+				paramMap[k] = v
+			}
+			return app.Run(ctx, RunOption{
+				JobQueue:   jobQueue,
+				JobName:    jobName,
+				Parameters: paramMap,
+				Wait:       wait,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config YAML file")
+	cmd.Flags().StringVar(&jobQueue, "job-queue", "", "AWS Batch job queue name")
+	cmd.Flags().StringVar(&jobName, "job-name", "", "Job name (defaults to job definition name)")
+	cmd.Flags().StringArrayVar(&params, "parameter", nil, "Parameter overrides (key=value, repeatable)")
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for the job to complete")
+	_ = cmd.MarkFlagRequired("config")
+	_ = cmd.MarkFlagRequired("job-queue")
 	return cmd
 }
 
