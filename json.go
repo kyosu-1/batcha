@@ -1,10 +1,13 @@
 package batcha
 
-import "unicode"
+import (
+	"strings"
+	"unicode"
+)
 
-// skipPascalKeys are map keys that should NOT have their children's keys converted,
-// because they are user-defined (e.g., environment variable names, tags).
-var skipPascalKeys = map[string]bool{
+// skipConvertKeys are map keys (lowercase) whose children should NOT have
+// their keys converted, because they are user-defined (e.g., tag keys, parameters).
+var skipConvertKeys = map[string]bool{
 	"options":    true,
 	"parameters": true,
 	"tags":       true,
@@ -17,7 +20,7 @@ func walkMap(v any, fn func(string) string) any {
 		result := make(map[string]any, len(val))
 		for k, child := range val {
 			newKey := fn(k)
-			if skipPascalKeys[k] {
+			if skipConvertKeys[strings.ToLower(k)] {
 				result[newKey] = child
 			} else {
 				result[newKey] = walkMap(child, fn)

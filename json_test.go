@@ -88,15 +88,48 @@ func TestWalkMap(t *testing.T) {
 		t.Error("expected Name key in environment item")
 	}
 
-	// Tags keys should NOT be converted (skipPascalKeys)
+	// Tags keys should NOT be converted (skipConvertKeys)
 	tags := result["Tags"].(map[string]any)
 	if _, ok := tags["myTag"]; !ok {
 		t.Error("expected tags keys to be preserved as-is")
 	}
 
-	// Parameters keys should NOT be converted (skipPascalKeys)
+	// Parameters keys should NOT be converted (skipConvertKeys)
 	params := result["Parameters"].(map[string]any)
 	if _, ok := params["inputFile"]; !ok {
 		t.Error("expected parameters keys to be preserved as-is")
+	}
+}
+
+func TestWalkMap_ToCamelCase_SkipConvertKeys(t *testing.T) {
+	// Simulate AWS response with PascalCase keys
+	input := map[string]any{
+		"JobDefinitionName": "test-job",
+		"Tags": map[string]any{
+			"ProjectName": "my-project",
+			"Environment": "dev",
+		},
+		"Parameters": map[string]any{
+			"InputFile": "s3://bucket/file",
+		},
+	}
+
+	result := walkMap(input, toCamelCase).(map[string]any)
+
+	// Top-level keys should be camelCase
+	if _, ok := result["jobDefinitionName"]; !ok {
+		t.Error("expected jobDefinitionName key")
+	}
+
+	// Tags children should NOT be converted even with PascalCase parent key
+	tags := result["tags"].(map[string]any)
+	if _, ok := tags["ProjectName"]; !ok {
+		t.Error("expected Tags children to be preserved as-is, but ProjectName was converted")
+	}
+
+	// Parameters children should NOT be converted
+	params := result["parameters"].(map[string]any)
+	if _, ok := params["InputFile"]; !ok {
+		t.Error("expected Parameters children to be preserved as-is, but InputFile was converted")
 	}
 }

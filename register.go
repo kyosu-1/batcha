@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/batch"
@@ -57,13 +58,9 @@ func (app *App) Register(ctx context.Context, opt RegisterOption) error {
 		if err == nil && len(out.JobDefinitions) > 0 {
 			latest := pickLatestRevision(out.JobDefinitions)
 			remoteMap, err := normalizeRemoteDefinition(latest)
-			if err == nil {
-				remoteBytes, _ := json.Marshal(remoteMap)
-				localBytes, _ := json.Marshal(converted)
-				if string(remoteBytes) == string(localBytes) {
-					fmt.Printf("No changes detected. Skip registration. (current revision: %d)\n", aws.ToInt32(latest.Revision))
-					return nil
-				}
+			if err == nil && reflect.DeepEqual(remoteMap, converted) {
+				fmt.Printf("No changes detected. Skip registration. (current revision: %d)\n", aws.ToInt32(latest.Revision))
+				return nil
 			}
 		}
 	}
